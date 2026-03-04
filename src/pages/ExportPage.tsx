@@ -1741,6 +1741,7 @@ function ExportPage() {
     options?: {
       scopeKey?: string
       seededCounts?: Record<string, number>
+      forceRefreshAll?: boolean
     }
   ): Promise<Record<string, number>> => {
     const requestId = sessionCountRequestIdRef.current + 1
@@ -1780,8 +1781,10 @@ function ExportPage() {
     }
 
     const pendingSessions = exportableSessions.filter((session) => {
-      const nextCount = normalizeMessageCount(accumulatedCounts[session.username])
-      return typeof nextCount !== 'number'
+      if (options?.forceRefreshAll) return true
+      const persistedCount = normalizeMessageCount(seededPersistentCounts[session.username])
+      // messageCountHint 仅用于占位展示，不作为“已完成统计”的依据。
+      return typeof persistedCount !== 'number'
     })
     if (pendingSessions.length === 0) {
       setIsLoadingSessionCounts(false)
@@ -2001,7 +2004,8 @@ function ExportPage() {
           if (shouldRefreshMessageCounts) {
             resolvedMessageCounts = await loadSessionMessageCounts(baseSessions, activeTabRef.current, {
               scopeKey,
-              seededCounts: cachedMessageCounts
+              seededCounts: cachedMessageCounts,
+              forceRefreshAll: !isMessageCountCacheFresh
             })
           } else {
             setIsLoadingSessionCounts(false)
@@ -3458,6 +3462,21 @@ function ExportPage() {
       const result = await window.electronAPI.chat.getSessionDetailFast(normalizedSessionId)
       if (requestSeq !== detailRequestSeqRef.current) return
       if (result.success && result.detail) {
+        const fastMessageCount = normalizeMessageCount(result.detail.messageCount)
+        if (typeof fastMessageCount === 'number') {
+          setSessionMessageCounts((prev) => {
+            if (prev[normalizedSessionId] === fastMessageCount) return prev
+            return {
+              ...prev,
+              [normalizedSessionId]: fastMessageCount
+            }
+          })
+          mergeSessionContentMetrics({
+            [normalizedSessionId]: {
+              totalMessages: fastMessageCount
+            }
+          })
+        }
         setSessionDetail((prev) => ({
           wxid: normalizedSessionId,
           displayName: result.detail!.displayName || prev?.displayName || normalizedSessionId,
@@ -3580,7 +3599,7 @@ function ExportPage() {
         setIsLoadingSessionDetailExtra(false)
       }
     }
-  }, [applySessionDetailStats, contactByUsername, sessionContentMetrics, sessionMessageCounts, sessionRowByUsername])
+  }, [applySessionDetailStats, contactByUsername, mergeSessionContentMetrics, sessionContentMetrics, sessionMessageCounts, sessionRowByUsername])
 
   const loadSessionRelationStats = useCallback(async () => {
     const normalizedSessionId = String(sessionDetail?.wxid || '').trim()
