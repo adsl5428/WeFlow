@@ -3492,6 +3492,18 @@ function ExportPage() {
   const isContentTextDialog = isContentScopeDialog && exportDialog.contentType === 'text'
   const shouldShowFormatSection = !isContentScopeDialog || isContentTextDialog
   const shouldShowMediaSection = !isContentScopeDialog
+  const shouldShowDisplayNameSection = !(
+    exportDialog.scope === 'sns' ||
+    (
+      exportDialog.scope === 'content' &&
+      (
+        exportDialog.contentType === 'voice' ||
+        exportDialog.contentType === 'image' ||
+        exportDialog.contentType === 'video' ||
+        exportDialog.contentType === 'emoji'
+      )
+    )
+  )
   const isTabCountComputing = isSharedTabCountsLoading && !isSharedTabCountsReady
   const isSnsCardStatsLoading = !hasSeededSnsStats
   const taskRunningCount = tasks.filter(task => task.status === 'running').length
@@ -4301,27 +4313,29 @@ function ExportPage() {
                 </div>
               )}
 
-              <div className="dialog-section">
-                <h4>发送者名称显示</h4>
-                <div className="display-name-options" role="radiogroup" aria-label="发送者名称显示">
-                  {displayNameOptions.map(option => {
-                    const isActive = options.displayNamePreference === option.value
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={isActive}
-                        className={`display-name-item ${isActive ? 'active' : ''}`}
-                        onClick={() => setOptions(prev => ({ ...prev, displayNamePreference: option.value }))}
-                      >
-                        <span>{option.label}</span>
-                        <small>{option.desc}</small>
-                      </button>
-                    )
-                  })}
+              {shouldShowDisplayNameSection && (
+                <div className="dialog-section">
+                  <h4>发送者名称显示</h4>
+                  <div className="display-name-options" role="radiogroup" aria-label="发送者名称显示">
+                    {displayNameOptions.map(option => {
+                      const isActive = options.displayNamePreference === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={isActive}
+                          className={`display-name-item ${isActive ? 'active' : ''}`}
+                          onClick={() => setOptions(prev => ({ ...prev, displayNamePreference: option.value }))}
+                        >
+                          <span>{option.label}</span>
+                          <small>{option.desc}</small>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="dialog-actions">
