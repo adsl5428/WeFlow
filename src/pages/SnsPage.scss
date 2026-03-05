@@ -267,6 +267,13 @@
         flex-shrink: 0;
     }
 
+    .post-time-standalone {
+        font-size: 12px;
+        color: var(--text-tertiary);
+        line-height: 1.2;
+        padding-top: 2px;
+    }
+
     .debug-btn {
         opacity: 0;
         transition: opacity 0.2s;

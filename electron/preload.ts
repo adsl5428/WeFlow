@@ -355,6 +355,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSnsUsernames: () => ipcRenderer.invoke('sns:getSnsUsernames'),
     getExportStatsFast: () => ipcRenderer.invoke('sns:getExportStatsFast'),
     getExportStats: () => ipcRenderer.invoke('sns:getExportStats'),
+    getUserPostStats: (username: string) => ipcRenderer.invoke('sns:getUserPostStats', username),
     debugResource: (url: string) => ipcRenderer.invoke('sns:debugResource', url),
     proxyImage: (payload: { url: string; key?: string | number }) => ipcRenderer.invoke('sns:proxyImage', payload),
     downloadImage: (payload: { url: string; key?: string | number }) => ipcRenderer.invoke('sns:downloadImage', payload),

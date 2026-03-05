@@ -1517,6 +1517,10 @@ function registerIpcHandlers() {
     return snsService.getExportStatsFast()
   })
 
+  ipcMain.handle('sns:getUserPostStats', async (_, username: string) => {
+    return snsService.getUserPostStats(username)
+  })
+
   ipcMain.handle('sns:debugResource', async (_, url: string) => {
     return snsService.debugResource(url)
   })

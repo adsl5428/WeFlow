@@ -791,6 +791,7 @@ export interface ElectronAPI {
     getSnsUsernames: () => Promise<{ success: boolean; usernames?: string[]; error?: string }>
     getExportStatsFast: () => Promise<{ success: boolean; data?: { totalPosts: number; totalFriends: number; myPosts: number | null }; error?: string }>
     getExportStats: () => Promise<{ success: boolean; data?: { totalPosts: number; totalFriends: number; myPosts: number | null }; error?: string }>
+    getUserPostStats: (username: string) => Promise<{ success: boolean; data?: { username: string; totalPosts: number }; error?: string }>
     installBlockDeleteTrigger: () => Promise<{ success: boolean; alreadyInstalled?: boolean; error?: string }>
     uninstallBlockDeleteTrigger: () => Promise<{ success: boolean; error?: string }>
     checkBlockDeleteTrigger: () => Promise<{ success: boolean; installed?: boolean; error?: string }>

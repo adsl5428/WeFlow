@@ -506,6 +506,10 @@ class SnsService {
         return Number.isFinite(num) && num > 0 ? Math.floor(num) : 0
     }
 
+    private escapeSqlString(value: string): string {
+        return value.replace(/'/g, "''")
+    }
+
     private pickTimelineUsername(post: any): string {
         const raw = post?.username ?? post?.user_name ?? post?.userName ?? ''
         if (typeof raw !== 'string') return ''
@@ -862,6 +866,54 @@ class SnsService {
             allowTimelineFallback: false,
             preferCache: true
         })
+    }
+
+    async getUserPostStats(username: string): Promise<{ success: boolean; data?: { username: string; totalPosts: number }; error?: string }> {
+        const normalizedUsername = this.toOptionalString(username)
+        if (!normalizedUsername) {
+            return { success: false, error: '用户名不能为空' }
+        }
+
+        const escapedUsername = this.escapeSqlString(normalizedUsername)
+        const primaryResult = await wcdbService.execQuery(
+            'sns',
+            null,
+            `SELECT COUNT(1) AS total FROM SnsTimeLine WHERE user_name = '${escapedUsername}'`
+        )
+
+        if (primaryResult.success) {
+            const totalPosts = primaryResult.rows && primaryResult.rows.length > 0
+                ? this.parseCountValue(primaryResult.rows[0])
+                : 0
+            return {
+                success: true,
+                data: {
+                    username: normalizedUsername,
+                    totalPosts
+                }
+            }
+        }
+
+        const fallbackResult = await wcdbService.execQuery(
+            'sns',
+            null,
+            `SELECT COUNT(1) AS total FROM SnsTimeLine WHERE userName = '${escapedUsername}'`
+        )
+
+        if (fallbackResult.success) {
+            const totalPosts = fallbackResult.rows && fallbackResult.rows.length > 0
+                ? this.parseCountValue(fallbackResult.rows[0])
+                : 0
+            return {
+                success: true,
+                data: {
+                    username: normalizedUsername,
+                    totalPosts
+                }
+            }
+        }
+
+        return { success: false, error: primaryResult.error || fallbackResult.error || '统计单个好友朋友圈失败' }
     }
 
     // 安装朋友圈删除拦截

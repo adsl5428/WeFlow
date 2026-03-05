@@ -67,6 +67,8 @@ export default function SnsPage() {
     const [authorTimelineLoading, setAuthorTimelineLoading] = useState(false)
     const [authorTimelineLoadingMore, setAuthorTimelineLoadingMore] = useState(false)
     const [authorTimelineHasMore, setAuthorTimelineHasMore] = useState(false)
+    const [authorTimelineTotalPosts, setAuthorTimelineTotalPosts] = useState<number | null>(null)
+    const [authorTimelineStatsLoading, setAuthorTimelineStatsLoading] = useState(false)
 
     // 导出相关状态
     const [showExportDialog, setShowExportDialog] = useState(false)
@@ -104,6 +106,7 @@ export default function SnsPage() {
     const authorTimelinePostsRef = useRef<SnsPost[]>([])
     const authorTimelineLoadingRef = useRef(false)
     const authorTimelineRequestTokenRef = useRef(0)
+    const authorTimelineStatsTokenRef = useRef(0)
 
     // Sync posts ref
     useEffect(() => {
@@ -477,12 +480,41 @@ export default function SnsPage() {
 
     const closeAuthorTimeline = useCallback(() => {
         authorTimelineRequestTokenRef.current += 1
+        authorTimelineStatsTokenRef.current += 1
         authorTimelineLoadingRef.current = false
         setAuthorTimelineTarget(null)
         setAuthorTimelinePosts([])
         setAuthorTimelineLoading(false)
         setAuthorTimelineLoadingMore(false)
         setAuthorTimelineHasMore(false)
+        setAuthorTimelineTotalPosts(null)
+        setAuthorTimelineStatsLoading(false)
+    }, [])
+
+    const loadAuthorTimelineTotalPosts = useCallback(async (target: AuthorTimelineTarget) => {
+        const requestToken = ++authorTimelineStatsTokenRef.current
+        setAuthorTimelineStatsLoading(true)
+        setAuthorTimelineTotalPosts(null)
+
+        try {
+            const result = await window.electronAPI.sns.getUserPostStats(target.username)
+            if (requestToken !== authorTimelineStatsTokenRef.current) return
+
+            if (result.success && result.data) {
+                setAuthorTimelineTotalPosts(Math.max(0, Number(result.data.totalPosts || 0)))
+            } else {
+                setAuthorTimelineTotalPosts(null)
+            }
+        } catch (error) {
+            console.error('Failed to load author timeline total posts:', error)
+            if (requestToken === authorTimelineStatsTokenRef.current) {
+                setAuthorTimelineTotalPosts(null)
+            }
+        } finally {
+            if (requestToken === authorTimelineStatsTokenRef.current) {
+                setAuthorTimelineStatsLoading(false)
+            }
+        }
     }, [])
 
     const loadAuthorTimelinePosts = useCallback(async (target: AuthorTimelineTarget, options: { reset?: boolean } = {}) => {
@@ -568,23 +600,28 @@ export default function SnsPage() {
         setAuthorTimelineTarget(target)
         setAuthorTimelinePosts([])
         setAuthorTimelineHasMore(false)
+        setAuthorTimelineTotalPosts(null)
         void loadAuthorTimelinePosts(target, { reset: true })
-    }, [loadAuthorTimelinePosts])
+        void loadAuthorTimelineTotalPosts(target)
+    }, [loadAuthorTimelinePosts, loadAuthorTimelineTotalPosts])
 
     const loadMoreAuthorTimeline = useCallback(() => {
         if (!authorTimelineTarget || authorTimelineLoading || authorTimelineLoadingMore || !authorTimelineHasMore) return
         void loadAuthorTimelinePosts(authorTimelineTarget, { reset: false })
     }, [authorTimelineHasMore, authorTimelineLoading, authorTimelineLoadingMore, authorTimelineTarget, loadAuthorTimelinePosts])
 
-    const handlePostDelete = useCallback((postId: string) => {
+    const handlePostDelete = useCallback((postId: string, username: string) => {
         setPosts(prev => {
             const next = prev.filter(p => p.id !== postId)
             void persistSnsPageCache({ posts: next })
             return next
         })
         setAuthorTimelinePosts(prev => prev.filter(p => p.id !== postId))
+        if (authorTimelineTarget && authorTimelineTarget.username === username) {
+            setAuthorTimelineTotalPosts(prev => prev === null ? null : Math.max(0, prev - 1))
+        }
         void loadOverviewStats()
-    }, [loadOverviewStats, persistSnsPageCache])
+    }, [authorTimelineTarget, loadOverviewStats, persistSnsPageCache])
 
     // Initial Load & Listeners
     useEffect(() => {
@@ -626,6 +663,13 @@ export default function SnsPage() {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [authorTimelineTarget, closeAuthorTimeline])
 
+    useEffect(() => {
+        if (authorTimelineTotalPosts === null) return
+        if (authorTimelinePosts.length >= authorTimelineTotalPosts) {
+            setAuthorTimelineHasMore(false)
+        }
+    }, [authorTimelinePosts.length, authorTimelineTotalPosts])
+
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const { scrollTop, clientHeight, scrollHeight } = e.currentTarget
         if (scrollHeight - scrollTop - clientHeight < 400 && hasMore && !loading && !loadingNewer) {
@@ -652,12 +696,19 @@ export default function SnsPage() {
     }
 
     const renderAuthorTimelineStats = () => {
-        if (authorTimelineLoading) return '加载中...'
-        if (authorTimelinePosts.length === 0) return '暂无朋友圈'
+        const loadedCount = authorTimelinePosts.length
+        const loadPart = authorTimelineStatsLoading
+            ? `已加载 ${loadedCount} / 总数统计中...`
+            : authorTimelineTotalPosts === null
+                ? `已加载 ${loadedCount} 条`
+                : `已加载 ${loadedCount} / 共 ${authorTimelineTotalPosts} 条`
+
+        if (authorTimelineLoading && loadedCount === 0) return `${loadPart} ｜ 加载中...`
+        if (loadedCount === 0) return loadPart
+
         const latest = authorTimelinePosts[0]?.createTime ?? null
         const earliest = authorTimelinePosts[authorTimelinePosts.length - 1]?.createTime ?? null
-        const loadedLabel = authorTimelineHasMore ? `已加载 ${authorTimelinePosts.length} 条` : `共 ${authorTimelinePosts.length} 条`
-        return `${loadedLabel} ｜ ${formatDateOnly(earliest)} ~ ${formatDateOnly(latest)}`
+        return `${loadPart} ｜ ${formatDateOnly(earliest)} ~ ${formatDateOnly(latest)}`
     }
 
     return (
@@ -858,6 +909,7 @@ export default function SnsPage() {
                                             onDebug={(p) => setDebugPost(p)}
                                             onDelete={handlePostDelete}
                                             onOpenAuthorPosts={openAuthorTimeline}
+                                            hideAuthorMeta
                                         />
                                     ))}
                                 </div>
