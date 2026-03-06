@@ -1320,6 +1320,7 @@ function ExportPage() {
     sessionNames: [],
     title: ''
   })
+  const [showSessionFormatSelect, setShowSessionFormatSelect] = useState(false)
 
   const [tasks, setTasks] = useState<ExportTask[]>([])
   const [lastExportBySession, setLastExportBySession] = useState<Record<string, number>>({})
@@ -1354,6 +1355,7 @@ function ExportPage() {
   const contactsAvatarCacheRef = useRef<Record<string, configService.ContactsAvatarCacheEntry>>({})
   const contactsVirtuosoRef = useRef<VirtuosoHandle | null>(null)
   const sessionTableSectionRef = useRef<HTMLDivElement | null>(null)
+  const sessionFormatDropdownRef = useRef<HTMLDivElement | null>(null)
   const detailRequestSeqRef = useRef(0)
   const sessionsRef = useRef<SessionRow[]>([])
   const sessionContentMetricsRef = useRef<Record<string, SessionContentMetric>>({})
@@ -4801,6 +4803,24 @@ function ExportPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [closeSessionSnsTimeline, sessionSnsTimelineTarget])
 
+  useEffect(() => {
+    if (!showSessionFormatSelect) return
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (sessionFormatDropdownRef.current && !sessionFormatDropdownRef.current.contains(target)) {
+        setShowSessionFormatSelect(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [showSessionFormatSelect])
+
+  useEffect(() => {
+    if (!exportDialog.open) {
+      setShowSessionFormatSelect(false)
+    }
+  }, [exportDialog.open])
+
   const handleCopyDetailField = useCallback(async (text: string, field: string) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -4894,14 +4914,19 @@ function ExportPage() {
   const formatCandidateOptions = exportDialog.scope === 'sns'
     ? snsFormatOptions
     : formatOptions
+  const isSessionScopeDialog = exportDialog.scope === 'single' || exportDialog.scope === 'multi'
   const isContentScopeDialog = exportDialog.scope === 'content'
   const isContentTextDialog = isContentScopeDialog && exportDialog.contentType === 'text'
+  const useCollapsedSessionFormatSelector = isSessionScopeDialog
   const shouldShowFormatSection = !isContentScopeDialog || isContentTextDialog
   const shouldShowMediaSection = !isContentScopeDialog
   const avatarExportStatusLabel = options.exportAvatars ? '已开启聊天消息导出带头像' : '已关闭聊天消息导出带头像'
   const textContentFormatNote = options.exportAvatars
     ? '此模式包含用户头像，不导出图片语音视频表情包等多媒体内容'
     : '此模式不包含用户头像，不导出图片语音视频表情包等多媒体内容'
+  const activeDialogFormatLabel = exportDialog.scope === 'sns'
+    ? (snsFormatOptions.find(option => option.value === snsExportFormat)?.label ?? snsExportFormat)
+    : (formatOptions.find(option => option.value === options.format)?.label ?? options.format)
   const shouldShowDisplayNameSection = !(
     exportDialog.scope === 'sns' ||
     (
@@ -6057,33 +6082,69 @@ function ExportPage() {
 
               {shouldShowFormatSection && (
                 <div className="dialog-section">
-                  <h4>{exportDialog.scope === 'sns' ? '朋友圈导出格式选择' : '对话文本导出格式选择'}</h4>
+                  {useCollapsedSessionFormatSelector ? (
+                    <div className="section-header-action">
+                      <h4>对话文本导出格式选择</h4>
+                      <div className="dialog-format-select" ref={sessionFormatDropdownRef}>
+                        <button
+                          type="button"
+                          className={`time-range-trigger ${showSessionFormatSelect ? 'open' : ''}`}
+                          onClick={() => setShowSessionFormatSelect(prev => !prev)}
+                        >
+                          <span>{activeDialogFormatLabel}</span>
+                          <span className="time-range-arrow">&gt;</span>
+                        </button>
+                        {showSessionFormatSelect && (
+                          <div className="dialog-format-dropdown">
+                            {formatOptions.map(option => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className={`dialog-format-option ${options.format === option.value ? 'active' : ''}`}
+                                onClick={() => {
+                                  setOptions(prev => ({ ...prev, format: option.value as TextExportFormat }))
+                                  setShowSessionFormatSelect(false)
+                                }}
+                              >
+                                <span className="option-label">{option.label}</span>
+                                <span className="option-desc">{option.desc}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <h4>{exportDialog.scope === 'sns' ? '朋友圈导出格式选择' : '对话文本导出格式选择'}</h4>
+                  )}
                   {!isContentScopeDialog && exportDialog.scope !== 'sns' && (
                     <div className="format-note">{avatarExportStatusLabel}</div>
                   )}
                   {isContentTextDialog && (
                     <div className="format-note">{textContentFormatNote}</div>
                   )}
-                  <div className="format-grid">
-                    {formatCandidateOptions.map(option => (
-                      <button
-                        key={option.value}
-                        className={`format-card ${exportDialog.scope === 'sns'
-                          ? (snsExportFormat === option.value ? 'active' : '')
-                          : (options.format === option.value ? 'active' : '')}`}
-                        onClick={() => {
-                          if (exportDialog.scope === 'sns') {
-                            setSnsExportFormat(option.value as SnsTimelineExportFormat)
-                          } else {
-                            setOptions(prev => ({ ...prev, format: option.value as TextExportFormat }))
-                          }
-                        }}
-                      >
-                        <div className="format-label">{option.label}</div>
-                        <div className="format-desc">{option.desc}</div>
-                      </button>
-                    ))}
-                  </div>
+                  {!useCollapsedSessionFormatSelector && (
+                    <div className="format-grid">
+                      {formatCandidateOptions.map(option => (
+                        <button
+                          key={option.value}
+                          className={`format-card ${exportDialog.scope === 'sns'
+                            ? (snsExportFormat === option.value ? 'active' : '')
+                            : (options.format === option.value ? 'active' : '')}`}
+                          onClick={() => {
+                            if (exportDialog.scope === 'sns') {
+                              setSnsExportFormat(option.value as SnsTimelineExportFormat)
+                            } else {
+                              setOptions(prev => ({ ...prev, format: option.value as TextExportFormat }))
+                            }
+                          }}
+                        >
+                          <div className="format-label">{option.label}</div>
+                          <div className="format-desc">{option.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

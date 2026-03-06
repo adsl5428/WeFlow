@@ -145,7 +145,7 @@ export function ExportDefaultsSettingsForm({
         </div>
       </div>
 
-      <div className="form-group">
+      <div className="form-group format-setting-group">
         <div className="form-copy">
           <label>聊天消息默认导出格式</label>
           <span className="form-hint">导出页面默认选中的格式</span>

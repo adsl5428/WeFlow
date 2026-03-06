@@ -2858,6 +2858,66 @@
   }
 }
 
+.dialog-format-select {
+  position: relative;
+  min-width: 220px;
+}
+
+.dialog-format-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(360px, calc(100vw - 64px));
+  background: color-mix(in srgb, var(--bg-primary) 85%, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: var(--shadow-md);
+  z-index: 120;
+  max-height: 320px;
+  overflow-y: auto;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.dialog-format-option {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text-primary);
+  font-size: 14px;
+
+  &:hover {
+    background: var(--bg-tertiary);
+  }
+
+  &.active {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+  }
+
+  .option-label {
+    font-weight: 500;
+  }
+
+  .option-desc {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  &.active .option-desc {
+    color: var(--primary);
+  }
+}
+
 .scope-tag-row {
   display: flex;
   align-items: center;
