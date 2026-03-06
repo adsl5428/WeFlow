@@ -2486,7 +2486,6 @@
   right: 0;
   z-index: 10;
   background: var(--bg-primary);
-  will-change: transform;
 
   &::before {
     content: '';
