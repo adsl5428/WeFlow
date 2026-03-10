@@ -74,19 +74,13 @@ export class KeyServiceMac {
     try {
       onStatus?.('正在获取数据库密钥...', 0)
       
-      const keyPtr = this.GetDbKey()
-      console.log('[KeyServiceMac] GetDbKey returned:', keyPtr, 'type:', typeof keyPtr)
+      const result = this.GetDbKey()
+      console.log('[KeyServiceMac] GetDbKey returned:', result)
       
-      if (!keyPtr) {
+      if (!result) {
         onStatus?.('获取失败：未知错误', 2)
         return { success: false, error: '未知错误' }
       }
-
-      console.log('[KeyServiceMac] Attempting to decode pointer...')
-      const result = this.koffi.decode(keyPtr, 'string')
-      console.log('[KeyServiceMac] Decoded result:', result)
-      
-      this.FreeString(keyPtr)
 
       // 检查是否是错误信息
       if (result.startsWith('ERROR:')) {
@@ -111,7 +105,7 @@ export class KeyServiceMac {
       console.error('[KeyServiceMac] Error:', e)
       console.error('[KeyServiceMac] Stack:', e.stack)
       onStatus?.('获取失败: ' + e.message, 2)
-      return { success: false, error: e.message + '\n' + e.stack }
+      return { success: false, error: e.message }
     }
   }
 
@@ -232,14 +226,8 @@ export class KeyServiceMac {
 
   private async _scanMemoryForAesKey(pid: number, ciphertext: Buffer): Promise<string | null> {
     const ciphertextHex = ciphertext.toString('hex')
-    const aesKeyPtr = this.ScanMemoryForImageKey(pid, ciphertextHex)
-    
-    if (!aesKeyPtr) return null
-    
-    const aesKey = this.koffi.decode(aesKeyPtr, 'string')
-    this.FreeString(aesKeyPtr)
-    
-    return aesKey
+    const aesKey = this.ScanMemoryForImageKey(pid, ciphertextHex)
+    return aesKey || null
   }
 
   private async findWeChatPid(): Promise<number | null> {
