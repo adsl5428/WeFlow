@@ -380,15 +380,20 @@ export class KeyServiceMac {
     }
 
     const lines = String(stdout).split(/\r?\n/).map(x => x.trim()).filter(Boolean)
-    const last = lines[lines.length - 1]
-    if (!last) throw new Error('elevated helper returned empty output')
+    if (!lines.length) throw new Error('elevated helper returned empty output')
 
+    // 找最后一个能成功 parse 的 JSON 行（stderr 混入 stdout 时会有非 JSON 行）
     let payload: any
-    try {
-      payload = JSON.parse(last)
-    } catch {
-      throw new Error('elevated helper returned invalid json: ' + last)
+    let lastJsonLine = ''
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!lines[i].startsWith('{')) continue
+      try {
+        payload = JSON.parse(lines[i])
+        lastJsonLine = lines[i]
+        break
+      } catch { continue }
     }
+    if (!payload) throw new Error('elevated helper returned invalid json: ' + lines[lines.length - 1])
     if (payload?.success === true && typeof payload?.key === 'string') return payload.key
     if (typeof payload?.result === 'string') return payload.result
     throw new Error('elevated helper json missing key/result')
