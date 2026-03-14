@@ -2446,12 +2446,12 @@ app.whenReady().then(async () => {
   updateSplashProgress(30, '正在加载界面...')
   mainWindow = createWindow({ autoShow: false })
 
-  // 初始化系统托盘图标
-  const trayIconPath = process.platform === 'win32'
-    ? join(process.resourcesPath, 'icon.ico')
-    : join(process.resourcesPath, 'resources', 'icon.icns')
-  const trayIconFallback = join(__dirname, '..', 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.icns')
-  const resolvedTrayIcon = existsSync(trayIconPath) ? trayIconPath : trayIconFallback
+  // 初始化系统托盘图标（与其他窗口 icon 路径逻辑保持一致）
+  const resolvedTrayIcon = process.platform === 'win32'
+    ? join(__dirname, '../public/icon.ico')
+    : (process.platform === 'darwin'
+        ? join(process.resourcesPath, 'icon.icns')
+        : join(process.resourcesPath, 'icon.ico'))
   try {
     tray = new Tray(resolvedTrayIcon)
     tray.setToolTip('WeFlow')
