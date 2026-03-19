@@ -96,7 +96,13 @@ let keyService: any
 if (process.platform === 'darwin') {
   keyService = new KeyServiceMac()
 } else if (process.platform === 'linux') {
-  keyService = new KeyServiceLinux()
+  // const { KeyServiceLinux } = require('./services/keyServiceLinux')
+  // keyService = new KeyServiceLinux()
+
+  import('./services/keyServiceLinux').then(({ KeyServiceLinux }) => {
+    keyService = new KeyServiceLinux();
+  });
+
 } else {
   keyService = new KeyService()
 }
