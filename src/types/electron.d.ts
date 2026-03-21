@@ -863,6 +863,7 @@ export interface ExportOptions {
   sessionNameWithTypePrefix?: boolean
   displayNamePreference?: 'group-nickname' | 'remark' | 'nickname'
   exportConcurrency?: number
+  imageDeepSearchOnMiss?: boolean
 }
 
 export interface ExportProgress {

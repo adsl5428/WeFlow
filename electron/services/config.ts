@@ -34,6 +34,7 @@ interface ConfigSchema {
   autoTranscribeVoice: boolean
   transcribeLanguages: string[]
   exportDefaultConcurrency: number
+  exportDefaultImageDeepSearchOnMiss: boolean
   analyticsExcludedUsernames: string[]
 
   // 安全相关
@@ -106,6 +107,7 @@ export class ConfigService {
       autoTranscribeVoice: false,
       transcribeLanguages: ['zh'],
       exportDefaultConcurrency: 4,
+      exportDefaultImageDeepSearchOnMiss: true,
       analyticsExcludedUsernames: [],
       authEnabled: false,
       authPassword: '',

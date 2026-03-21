@@ -105,6 +105,7 @@ export interface ExportOptions {
   sessionNameWithTypePrefix?: boolean
   displayNamePreference?: 'group-nickname' | 'remark' | 'nickname'
   exportConcurrency?: number
+  imageDeepSearchOnMiss?: boolean
 }
 
 const TXT_COLUMN_DEFINITIONS: Array<{ id: string; label: string }> = [
@@ -259,6 +260,7 @@ class ExportService {
   private mediaFileCacheReadyDirs = new Set<string>()
   private mediaExportTelemetry: MediaExportTelemetry | null = null
   private mediaRunSourceDedupMap = new Map<string, string>()
+  private mediaRunMissingImageKeys = new Set<string>()
   private mediaFileCacheCleanupPending: Promise<void> | null = null
   private mediaFileCacheLastCleanupAt = 0
   private readonly mediaFileCacheCleanupIntervalMs = 30 * 60 * 1000
@@ -524,11 +526,13 @@ class ExportService {
   private resetMediaRuntimeState(): void {
     this.mediaExportTelemetry = this.createEmptyMediaTelemetry()
     this.mediaRunSourceDedupMap.clear()
+    this.mediaRunMissingImageKeys.clear()
   }
 
   private clearMediaRuntimeState(): void {
     this.mediaExportTelemetry = null
     this.mediaRunSourceDedupMap.clear()
+    this.mediaRunMissingImageKeys.clear()
   }
 
   private getMediaTelemetrySnapshot(): Partial<ExportProgress> {
@@ -3325,6 +3329,7 @@ class ExportService {
       exportVoiceAsText?: boolean
       includeVideoPoster?: boolean
       includeVoiceWithTranscript?: boolean
+      imageDeepSearchOnMiss?: boolean
       dirCache?: Set<string>
     }
   ): Promise<MediaExportItem | null> {
@@ -3332,7 +3337,14 @@ class ExportService {
 
     // 图片消息
     if (localType === 3 && options.exportImages) {
-      const result = await this.exportImage(msg, sessionId, mediaRootDir, mediaRelativePrefix, options.dirCache)
+      const result = await this.exportImage(
+        msg,
+        sessionId,
+        mediaRootDir,
+        mediaRelativePrefix,
+        options.dirCache,
+        options.imageDeepSearchOnMiss !== false
+      )
       if (result) {
       }
       return result
@@ -3378,7 +3390,8 @@ class ExportService {
     sessionId: string,
     mediaRootDir: string,
     mediaRelativePrefix: string,
-    dirCache?: Set<string>
+    dirCache?: Set<string>,
+    imageDeepSearchOnMiss = true
   ): Promise<MediaExportItem | null> {
     try {
       const imagesDir = path.join(mediaRootDir, mediaRelativePrefix, 'images')
@@ -3395,16 +3408,34 @@ class ExportService {
         return null
       }
 
+      const missingRunCacheKey = this.getImageMissingRunCacheKey(
+        sessionId,
+        imageMd5,
+        imageDatName,
+        imageDeepSearchOnMiss
+      )
+      if (missingRunCacheKey && this.mediaRunMissingImageKeys.has(missingRunCacheKey)) {
+        return null
+      }
+
       const result = await imageDecryptService.decryptImage({
         sessionId,
         imageMd5,
         imageDatName,
         force: true,  // 导出优先高清，失败再回退缩略图
-        preferFilePath: true
+        preferFilePath: true,
+        hardlinkOnly: !imageDeepSearchOnMiss
       })
 
       if (!result.success || !result.localPath) {
         console.log(`[Export] 图片解密失败 (localId=${msg.localId}): imageMd5=${imageMd5}, imageDatName=${imageDatName}, error=${result.error || '未知'}`)
+        if (!imageDeepSearchOnMiss) {
+          console.log(`[Export] 未命中 hardlink（已关闭缺图深度搜索）→ 将显示 [图片] 占位符`)
+          if (missingRunCacheKey) {
+            this.mediaRunMissingImageKeys.add(missingRunCacheKey)
+          }
+          return null
+        }
         // 尝试获取缩略图
         const thumbResult = await imageDecryptService.resolveCachedImage({
           sessionId,
@@ -3425,6 +3456,9 @@ class ExportService {
             result.localPath = cachedThumb
           } else {
             console.log(`[Export] 所有方式均失败 → 将显示 [图片] 占位符`)
+            if (missingRunCacheKey) {
+              this.mediaRunMissingImageKeys.add(missingRunCacheKey)
+            }
             return null
           }
         }
@@ -4851,6 +4885,7 @@ class ExportService {
               exportEmojis: options.exportEmojis,
               exportVoiceAsText: options.exportVoiceAsText,
               includeVideoPoster: options.format === 'html',
+              imageDeepSearchOnMiss: options.imageDeepSearchOnMiss,
               dirCache: mediaDirCache
             })
             mediaCache.set(mediaKey, mediaItem)
@@ -5353,6 +5388,7 @@ class ExportService {
               exportEmojis: options.exportEmojis,
               exportVoiceAsText: options.exportVoiceAsText,
               includeVideoPoster: options.format === 'html',
+              imageDeepSearchOnMiss: options.imageDeepSearchOnMiss,
               dirCache: mediaDirCache
             })
             mediaCache.set(mediaKey, mediaItem)
@@ -6205,6 +6241,7 @@ class ExportService {
               exportEmojis: options.exportEmojis,
               exportVoiceAsText: options.exportVoiceAsText,
               includeVideoPoster: options.format === 'html',
+              imageDeepSearchOnMiss: options.imageDeepSearchOnMiss,
               dirCache: mediaDirCache
             })
             mediaCache.set(mediaKey, mediaItem)
@@ -6912,6 +6949,7 @@ class ExportService {
               exportEmojis: options.exportEmojis,
               exportVoiceAsText: options.exportVoiceAsText,
               includeVideoPoster: options.format === 'html',
+              imageDeepSearchOnMiss: options.imageDeepSearchOnMiss,
               dirCache: mediaDirCache
             })
             mediaCache.set(mediaKey, mediaItem)
@@ -7281,6 +7319,7 @@ class ExportService {
               exportEmojis: options.exportEmojis,
               exportVoiceAsText: options.exportVoiceAsText,
               includeVideoPoster: options.format === 'html',
+              imageDeepSearchOnMiss: options.imageDeepSearchOnMiss,
               dirCache: mediaDirCache
             })
             mediaCache.set(mediaKey, mediaItem)
@@ -7702,6 +7741,7 @@ class ExportService {
               includeVideoPoster: options.format === 'html',
               includeVoiceWithTranscript: true,
               exportVideos: options.exportVideos,
+              imageDeepSearchOnMiss: options.imageDeepSearchOnMiss,
               dirCache: mediaDirCache
             })
             mediaCache.set(mediaKey, mediaItem)

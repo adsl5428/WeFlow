@@ -92,6 +92,7 @@ interface ExportOptions {
   txtColumns: string[]
   displayNamePreference: DisplayNamePreference
   exportConcurrency: number
+  imageDeepSearchOnMiss: boolean
 }
 
 interface SessionRow extends AppChatSession {
@@ -1593,6 +1594,7 @@ function ExportPage() {
   const [exportDefaultVoiceAsText, setExportDefaultVoiceAsText] = useState(false)
   const [exportDefaultExcelCompactColumns, setExportDefaultExcelCompactColumns] = useState(true)
   const [exportDefaultConcurrency, setExportDefaultConcurrency] = useState(2)
+  const [exportDefaultImageDeepSearchOnMiss, setExportDefaultImageDeepSearchOnMiss] = useState(true)
 
   const [options, setOptions] = useState<ExportOptions>({
     format: 'json',
@@ -1611,7 +1613,8 @@ function ExportPage() {
     excelCompactColumns: true,
     txtColumns: defaultTxtColumns,
     displayNamePreference: 'remark',
-    exportConcurrency: 2
+    exportConcurrency: 2,
+    imageDeepSearchOnMiss: true
   })
 
   const [exportDialog, setExportDialog] = useState<ExportDialogState>({
@@ -2138,7 +2141,7 @@ function ExportPage() {
     setIsBaseConfigLoading(true)
     let isReady = true
     try {
-      const [savedPath, savedFormat, savedAvatars, savedMedia, savedVoiceAsText, savedExcelCompactColumns, savedTxtColumns, savedConcurrency, savedSessionMap, savedContentMap, savedSessionRecordMap, savedSnsPostCount, savedWriteLayout, savedSessionNameWithTypePrefix, savedDefaultDateRange, exportCacheScope] = await Promise.all([
+      const [savedPath, savedFormat, savedAvatars, savedMedia, savedVoiceAsText, savedExcelCompactColumns, savedTxtColumns, savedConcurrency, savedImageDeepSearchOnMiss, savedSessionMap, savedContentMap, savedSessionRecordMap, savedSnsPostCount, savedWriteLayout, savedSessionNameWithTypePrefix, savedDefaultDateRange, exportCacheScope] = await Promise.all([
         configService.getExportPath(),
         configService.getExportDefaultFormat(),
         configService.getExportDefaultAvatars(),
@@ -2147,6 +2150,7 @@ function ExportPage() {
         configService.getExportDefaultExcelCompactColumns(),
         configService.getExportDefaultTxtColumns(),
         configService.getExportDefaultConcurrency(),
+        configService.getExportDefaultImageDeepSearchOnMiss(),
         configService.getExportLastSessionRunMap(),
         configService.getExportLastContentRunMap(),
         configService.getExportSessionRecordMap(),
@@ -2183,6 +2187,7 @@ function ExportPage() {
       setExportDefaultVoiceAsText(savedVoiceAsText ?? false)
       setExportDefaultExcelCompactColumns(savedExcelCompactColumns ?? true)
       setExportDefaultConcurrency(savedConcurrency ?? 2)
+      setExportDefaultImageDeepSearchOnMiss(savedImageDeepSearchOnMiss ?? true)
       const resolvedDefaultDateRange = resolveExportDateRangeConfig(savedDefaultDateRange)
       setExportDefaultDateRangeSelection(resolvedDefaultDateRange)
       setTimeRangeSelection(resolvedDefaultDateRange)
@@ -2215,7 +2220,8 @@ function ExportPage() {
         exportVoiceAsText: savedVoiceAsText ?? prev.exportVoiceAsText,
         excelCompactColumns: savedExcelCompactColumns ?? prev.excelCompactColumns,
         txtColumns,
-        exportConcurrency: savedConcurrency ?? prev.exportConcurrency
+        exportConcurrency: savedConcurrency ?? prev.exportConcurrency,
+        imageDeepSearchOnMiss: savedImageDeepSearchOnMiss ?? prev.imageDeepSearchOnMiss
       }))
     } catch (error) {
       isReady = false
@@ -3989,7 +3995,8 @@ function ExportPage() {
         exportEmojis: exportDefaultMedia.emojis,
         exportVoiceAsText: exportDefaultVoiceAsText,
         excelCompactColumns: exportDefaultExcelCompactColumns,
-        exportConcurrency: exportDefaultConcurrency
+        exportConcurrency: exportDefaultConcurrency,
+        imageDeepSearchOnMiss: exportDefaultImageDeepSearchOnMiss
       }
 
       if (payload.scope === 'sns') {
@@ -4022,7 +4029,8 @@ function ExportPage() {
     exportDefaultAvatars,
     exportDefaultMedia,
     exportDefaultVoiceAsText,
-    exportDefaultConcurrency
+    exportDefaultConcurrency,
+    exportDefaultImageDeepSearchOnMiss
   ])
 
   const closeExportDialog = useCallback(() => {
@@ -4241,6 +4249,7 @@ function ExportPage() {
       txtColumns: options.txtColumns,
       displayNamePreference: options.displayNamePreference,
       exportConcurrency: options.exportConcurrency,
+      imageDeepSearchOnMiss: options.imageDeepSearchOnMiss,
       sessionLayout,
       sessionNameWithTypePrefix,
       dateRange: options.useAllTime
@@ -4833,6 +4842,8 @@ function ExportPage() {
     await configService.setExportDefaultExcelCompactColumns(options.excelCompactColumns)
     await configService.setExportDefaultTxtColumns(options.txtColumns)
     await configService.setExportDefaultConcurrency(options.exportConcurrency)
+    await configService.setExportDefaultImageDeepSearchOnMiss(options.imageDeepSearchOnMiss)
+    setExportDefaultImageDeepSearchOnMiss(options.imageDeepSearchOnMiss)
   }
 
   const openSingleExport = useCallback((session: SessionRow) => {
@@ -6315,6 +6326,10 @@ function ExportPage() {
   const useCollapsedSessionFormatSelector = isSessionScopeDialog || isContentTextDialog
   const shouldShowFormatSection = !isContentScopeDialog || isContentTextDialog
   const shouldShowMediaSection = !isContentScopeDialog
+  const shouldShowImageDeepSearchToggle = exportDialog.scope !== 'sns' && (
+    (isSessionScopeDialog && options.exportImages) ||
+    (isContentScopeDialog && exportDialog.contentType === 'image')
+  )
   const avatarExportStatusLabel = options.exportAvatars ? '已开启聊天消息导出带头像' : '已关闭聊天消息导出带头像'
   const contentTextDialogSummary = '此模式只导出聊天文本，不包含图片语音视频表情包等多媒体文件。'
   const activeDialogFormatLabel = exportDialog.scope === 'sns'
@@ -8028,6 +8043,26 @@ function ExportPage() {
                   {exportDialog.scope === 'sns' && (
                     <div className="format-note">全不勾选时仅导出文本信息，不导出媒体文件。</div>
                   )}
+                </div>
+              )}
+
+              {shouldShowImageDeepSearchToggle && (
+                <div className="dialog-section">
+                  <div className="dialog-switch-row">
+                    <div className="dialog-switch-copy">
+                      <h4>缺图时深度搜索</h4>
+                      <div className="format-note">关闭后仅尝试 hardlink 命中，未命中将直接显示占位符，导出速度更快。</div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`dialog-switch ${options.imageDeepSearchOnMiss ? 'on' : ''}`}
+                      aria-pressed={options.imageDeepSearchOnMiss}
+                      aria-label="切换缺图时深度搜索"
+                      onClick={() => setOptions(prev => ({ ...prev, imageDeepSearchOnMiss: !prev.imageDeepSearchOnMiss }))}
+                    >
+                      <span className="dialog-switch-thumb" />
+                    </button>
+                  </div>
                 </div>
               )}
 
